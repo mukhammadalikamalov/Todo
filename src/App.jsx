@@ -1,9 +1,23 @@
-import { Add, CopyAll, Delete, Edit } from "@mui/icons-material";
-import { Alert, Box, Button, CircularProgress, IconButton, List, ListItem, ListItemSecondaryAction, ListItemText, Modal, TextField } from "@mui/material";
-import React, { useEffect, useState } from "react";
+import { Add, CopyAll, Delete, Edit, CheckCircle, EmojiObjects } from "@mui/icons-material";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  IconButton,
+  List,
+  ListItem,
+  ListItemSecondaryAction,
+  ListItemText,
+  Modal,
+  Snackbar,
+  TextField,
+  Typography
+} from "@mui/material";
+import React, { useEffect, useState, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import "./App.css";
-import { addTodo, fetchTodos, removeTodo } from "./core/redux/todo/todoAction";
+import { addTodo, fetchTodos, removeTodo, editTodo } from "./core/redux/todo/todoAction";
 
 const style = {
   position: 'absolute',
@@ -15,17 +29,40 @@ const style = {
   border: '2px solid #000',
   boxShadow: 24,
   p: 4,
+  borderRadius: 5,
 };
+
+const TodoList = React.memo(({ todos, handleEditTodo, handleRemoveTodo }) => {
+  return (
+    <List>
+      {todos.map((todo, index) => (
+        <ListItem key={todo.id} divider={false}>
+          <Box bgcolor="#ffffff" p={2} borderRadius={5} width="100%" display="flex" alignItems="center">
+            <ListItemText primary={todo.title} />
+            <ListItemSecondaryAction style={{ marginRight: 10 }}>
+              <IconButton edge="end" aria-label="edit" onClick={() => handleEditTodo(index)}>
+                <Edit />
+              </IconButton>
+              <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveTodo(index)}>
+                <Delete />
+              </IconButton>
+            </ListItemSecondaryAction>
+          </Box>
+        </ListItem>
+      ))}
+    </List>
+  );
+});
 
 function App() {
   const [input, setInput] = useState("");
   const [editInput, setEditInput] = useState("");
   const [removeInput, setRemoveInput] = useState("");
-  const [isEditing, setIsEditing] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
   const [removeIndex, setRemoveIndex] = useState(null);
   const [openEdit, setOpenEdit] = useState(false);
   const [openRemove, setOpenRemove] = useState(false);
+  const [openToast, setOpenToast] = useState(false); // State for the toast
   const dispatch = useDispatch();
   const todos = useSelector((state) => state.todos);
   const loading = useSelector((state) => state.loading);
@@ -35,7 +72,7 @@ function App() {
     dispatch(fetchTodos());
   }, [dispatch]);
 
-  const handleAddTodo = () => {
+  const handleAddTodo = useCallback(() => {
     if (input.trim()) {
       dispatch(
         addTodo({
@@ -46,73 +83,69 @@ function App() {
       );
       setInput("");
     }
-  };
+  }, [dispatch, input]);
 
-  const handleRemoveTodo = (index) => {
+  const handleRemoveTodo = useCallback((index) => {
     setRemoveIndex(index);
     setRemoveInput("");
     setOpenRemove(true);
-  };
+  }, []);
 
-  const handleConfirmRemove = () => {
+  const handleConfirmRemove = useCallback(() => {
     if (todos[removeIndex].title === removeInput.trim()) {
       dispatch(removeTodo(removeIndex));
       setOpenRemove(false);
       setRemoveIndex(null);
       setRemoveInput("");
+      setOpenToast(true); // Show the toast
     }
-  };
+  }, [dispatch, removeInput, removeIndex, todos]);
 
-  const handleEditTodo = (index) => {
+  const handleEditTodo = useCallback((index) => {
     setEditIndex(index);
     setEditInput(todos[index].title);
     setOpenEdit(true);
-  };
+  }, [todos]);
 
-  const handleSaveEdit = () => {
-    // Here you would dispatch an action to save the edited todo
-    // e.g., dispatch(editTodo(editIndex, editInput));
+  const handleSaveEdit = useCallback(() => {
+    dispatch(editTodo(editIndex, editInput));
     setOpenEdit(false);
-    setIsEditing(false);
     setEditIndex(null);
-  };
+    setEditInput("");
+  }, [dispatch, editIndex, editInput]);
 
   return (
-    <Box sx={{ p: 2 }}>
-      <TextField
-        label="New Todo"
-        variant="outlined"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        fullWidth
-        margin="normal"
-      />
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleAddTodo}
-        startIcon={<Add />}
-        fullWidth
-      >
-        Add
-      </Button>
+    <Box sx={{ p: 2, maxWidth: 600, mx: 'auto', mt: 4, bgcolor: '#ffec9e', borderRadius: 5 }}> {/* Change the main container color */}
+      <Typography variant="h4" component="h1" gutterBottom>
+        Todo List
+      </Typography>
+      <Box display="flex" alignItems="center" mb={2}>
+        <TextField
+          sx={{ backgroundColor: "#ffffff" }}
+          label="New Todo"
+          variant="outlined"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          fullWidth
+          margin="normal"
+        />
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleAddTodo}
+          startIcon={<Add />}
+          sx={{ ml: 2, height: '100%', mt: 1, borderRadius: 5 }}
+        >
+          Add
+        </Button>
+      </Box>
       {loading && <CircularProgress />}
       {error && <Alert severity="error">Error loading todos</Alert>}
-      <List>
-        {todos.map((todo, index) => (
-          <ListItem key={todo.id} divider>
-            <ListItemText primary={todo.title} />
-            <ListItemSecondaryAction>
-              <IconButton edge="end" aria-label="edit" onClick={() => handleEditTodo(index)}>
-                <Edit />
-              </IconButton>
-              <IconButton edge="end" aria-label="delete" onClick={() => handleRemoveTodo(index)}>
-                <Delete />
-              </IconButton>
-            </ListItemSecondaryAction>
-          </ListItem>
-        ))}
-      </List>
+      <TodoList
+        todos={todos}
+        handleEditTodo={handleEditTodo}
+        handleRemoveTodo={handleRemoveTodo}
+      />
       <Modal
         open={openEdit}
         onClose={() => setOpenEdit(false)}
@@ -120,6 +153,9 @@ function App() {
         aria-describedby="modal-modal-description"
       >
         <Box sx={style}>
+          <Typography variant="h6" component="h2" gutterBottom>
+            Edit Todo
+          </Typography>
           <TextField
             label="Edit Todo"
             variant="outlined"
@@ -146,8 +182,11 @@ function App() {
         aria-describedby="modal-modal-description"
       >
         <Box sx={style}>
+          <Typography variant="h6" component="h2" gutterBottom>
+            Confirm Remove
+          </Typography>
           <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box component="span" sx={{ fontWeight: 'bold', mr: 2 }}>{todos[removeIndex]?.title}</Box>
+            <Typography component="span" sx={{ fontWeight: 'bold', mr: 2 }}>{todos[removeIndex]?.title}</Typography>
             <IconButton edge="end" aria-label="copy" onClick={() => setRemoveInput(todos[removeIndex]?.title)}>
               <CopyAll />
             </IconButton>
@@ -171,6 +210,27 @@ function App() {
           </Button>
         </Box>
       </Modal>
+      {/* Toast Notification */}
+      <Snackbar
+        open={openToast}
+        autoHideDuration={3000}
+        onClose={() => setOpenToast(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+      >
+        <Alert
+          severity="success"
+          action={
+            <IconButton size="small" aria-label="close" color="inherit" onClick={() => setOpenToast(false)}>
+              <EmojiObjects fontSize="small" />
+            </IconButton>
+          }
+        >
+          <Box display="flex" alignItems="center">
+            <CheckCircle sx={{ mr: 1 }} />
+            Todo removed successfully!
+          </Box>
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
